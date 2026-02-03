@@ -1,61 +1,43 @@
-$uuProcesses = @(
-    "GameViewerServer",
-    "GameViewerService"
-)
+# ================== UU Remote Watchdog (Precise) ==================
+# 核心判定：GameViewerServer.exe 是否存在
+# 修复手段：重启 Windows 服务 GameViewerService（你已确认存在）
+# 防误判：连续多次检测不到才进入修复/重启
 
-$waitSeconds = 60
+$targetProcess = "GameViewerServer"     # 不带 .exe
+$serviceName   = "GameViewerService"    # 你提供的服务名
 
-function Is-UURunning {
-    foreach ($p in $uuProcesses) {
-        if (Get-Process -Name $p -ErrorAction SilentlyContinue) {
-            return $true
-        }
-    }
-    return $false
+$checks = 3                 # 连续失败次数阈值
+$intervalSeconds = 20       # 每次检查间隔
+$postFixWaitSeconds = 30    # 修复后等待时间
+
+function Is-ServerRunning {
+    return $null -ne (Get-Process -Name $targetProcess -ErrorAction SilentlyContinue)
 }
 
-function Try-Fix-UU {
-
-    # 尝试重启 UU 服务（如果存在）
-    $services = Get-Service | Where-Object {
-        $_.Name -like "*GameViewer*" -or $_.DisplayName -like "*UU*"
-    }
-
-    foreach ($s in $services) {
-        try {
-            Restart-Service -Name $s.Name -Force
-        } catch {}
-    }
-
-    Start-Sleep -Seconds 10
-
-
-    $possiblePaths = @(
-        "C:\Program Files\NetEase\GameViewer\GameViewer.exe",
-        "C:\Program Files (x86)\NetEase\GameViewer\GameViewer.exe"
-    )
-
-    foreach ($path in $possiblePaths) {
-        if (Test-Path $path) {
-            Start-Process $path
-            break
-        }
+function Try-Fix {
+    # 1) 重启服务（最可靠）
+    try {
+        Restart-Service -Name $serviceName -Force -ErrorAction Stop
+    } catch {
+        # 如果重启失败，尝试启动
+        try { Start-Service -Name $serviceName -ErrorAction SilentlyContinue } catch {}
     }
 }
 
-# ================== 主逻辑 ==================
+# ================== 主流程 ==================
 
-if (Is-UURunning) {
-    exit
+# 连续检查：避免瞬间抖动误判
+for ($i = 1; $i -le $checks; $i++) {
+    if (Is-ServerRunning) { exit }
+    Start-Sleep -Seconds $intervalSeconds
 }
 
-Try-Fix-UU
-Start-Sleep -Seconds $waitSeconds
+# 连续失败 -> 修复
+Try-Fix
+Start-Sleep -Seconds $postFixWaitSeconds
 
-if (Is-UURunning) {
-    exit
-}
+# 修复成功就退出
+if (Is-ServerRunning) { exit }
 
-# 修复失败 → 重启系统
+# 修复失败 -> 重启系统
 Restart-Computer -Force
-
