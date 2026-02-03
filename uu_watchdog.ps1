@@ -1,5 +1,3 @@
-# ================== UU 远程 看门狗 ==================
-
 $uuProcesses = @(
     "GameViewerServer",
     "GameViewerService"
@@ -18,7 +16,7 @@ function Is-UURunning {
 
 function Try-Fix-UU {
 
-    # 1️⃣ 尝试重启 UU 服务（如果存在）
+    # 尝试重启 UU 服务（如果存在）
     $services = Get-Service | Where-Object {
         $_.Name -like "*GameViewer*" -or $_.DisplayName -like "*UU*"
     }
@@ -58,5 +56,6 @@ if (Is-UURunning) {
     exit
 }
 
-# ❌ 修复失败 → 重启系统
+# 修复失败 → 重启系统
 Restart-Computer -Force
+
