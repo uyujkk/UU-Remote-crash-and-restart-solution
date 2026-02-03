@@ -1,0 +1,1 @@
+powershell.exe -ExecutionPolicy Bypass -File "C:\scripts\uu_watchdog.ps1"
